@@ -33,12 +33,8 @@ func NewRequestsWrapper(requests ...RequestWrapper) RequestsWrapper {
 	return RequestsWrapper{Data: requests}
 }
 
-func (user *User) SendRequests(requests RequestsWrapper) error {
-	file, err := createFile("test.json")
-	if err != nil {
-		return err
-	}
-	err = serializeRequests(file, requests)
+func (user *User) SendRequests(requests ...RequestWrapper) error {
+	file, err := initFile("test.json", NewRequestsWrapper(requests...))
 	if err != nil {
 		return err
 	}
@@ -66,16 +62,7 @@ func (user *User) SendRequests(requests RequestsWrapper) error {
 	return nil
 }
 
-func serializeRequests(file *os.File, requests RequestsWrapper) error {
-	data, err := json.MarshalIndent(requests, "", "")
-	if err != nil {
-		return err
-	}
-	file.Write(data)
-	return nil
-}
-
-func createFile(filename string) (*os.File, error) {
+func initFile(filename string, requests RequestsWrapper) (*os.File, error) {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
 		return nil, fmt.Errorf("can't find cahce dir: %w", err)
@@ -89,5 +76,23 @@ func createFile(filename string) (*os.File, error) {
 	if err != nil {
 		return nil, fmt.Errorf("can't open or create file %s: %w", filePath, err)
 	}
+
+	marshal, err := json.MarshalIndent(requests, "", "")
+	if err != nil {
+		return nil, err
+	}
+	err = file.Truncate(0)
+	if err != nil {
+		return nil, err
+	}
+	_, err = file.Seek(0, 0)
+	if err != nil {
+		return nil, err
+	}
+	_, err = file.Write(marshal)
+	if err != nil {
+		return nil, err
+	}
+
 	return file, nil
 }
