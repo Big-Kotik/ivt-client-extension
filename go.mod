@@ -4,7 +4,8 @@ go 1.18
 
 require (
 	github.com/go-faster/errors v0.6.1
-	github.com/gotd/td v0.69.0
+	github.com/gotd/contrib v0.13.0
+	github.com/gotd/td v0.67.0
 	go.uber.org/zap v1.23.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 )

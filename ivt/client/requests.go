@@ -9,13 +9,12 @@ import (
 
 	"github.com/gotd/td/telegram/message"
 	"github.com/gotd/td/telegram/uploader"
-	"github.com/gotd/td/tg"
 )
 
 type RequestWrapper struct {
 	Url     string              `json:"url"`
 	Method  string              `json:"method"`
-	Body    string              `json:"body"`
+	Body    []byte              `json:"body"`
 	Headers map[string][]string `json:"headers"`
 }
 
@@ -23,7 +22,10 @@ type RequestsWrapper struct {
 	Data []RequestWrapper `json:"data"`
 }
 
-func NewRequestWrapper(url string, method string, headers map[string][]string) RequestWrapper {
+func NewRequestWrapper(url string, method string, body []byte, headers map[string][]string) RequestWrapper {
+	if body == nil {
+		body = make([]byte, 0)
+	}
 	if headers == nil {
 		headers = make(map[string][]string)
 	}
@@ -41,16 +43,15 @@ func (user *User) SendRequests(requests ...RequestWrapper) error {
 		return err
 	}
 
-	api := tg.NewClient(user.tgClient)
+	api := user.tgClient.API()
 	u := uploader.NewUploader(api)
 	sender := message.NewSender(api).WithUploader(u)
-	ctx := context.Background()
-	upload, err := u.FromPath(ctx, file.Name())
+	upload, err := u.FromPath(context.Background(), file.Name())
 	if err != nil {
 		return fmt.Errorf("upload %q: %w", file.Name(), err)
 	}
-	target := sender.Resolve("@MishaRout")
-	if _, err := target.File(ctx, upload); err != nil {
+	target := sender.Resolve(user.botUsername)
+	if _, err := target.File(context.Background(), upload); err != nil {
 		return fmt.Errorf("send: %w", err)
 	}
 

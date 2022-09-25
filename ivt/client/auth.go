@@ -4,12 +4,16 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"github.com/gotd/contrib/bg"
+	"github.com/gotd/td/telegram/downloader"
+	"github.com/gotd/td/telegram/updates"
 	"os"
 	"strings"
 
 	"github.com/go-faster/errors"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/auth"
+	updhook "github.com/gotd/td/telegram/updates/hook"
 	"github.com/gotd/td/tg"
 	"go.uber.org/zap"
 )
@@ -17,11 +21,11 @@ import (
 // noSignUp can be embedded to prevent signing up.
 type noSignUp struct{}
 
-func (c noSignUp) SignUp(ctx context.Context) (auth.UserInfo, error) {
+func (c noSignUp) SignUp(_ context.Context) (auth.UserInfo, error) {
 	return auth.UserInfo{}, errors.New("not implemented")
 }
 
-func (c noSignUp) AcceptTermsOfService(ctx context.Context, tos tg.HelpTermsOfService) error {
+func (c noSignUp) AcceptTermsOfService(_ context.Context, tos tg.HelpTermsOfService) error {
 	return &auth.SignUpRequired{TermsOfService: tos}
 }
 
@@ -58,31 +62,100 @@ func getPhone() (string, error) {
 }
 
 func authClient(log *zap.Logger) (*telegram.Client, error) {
-	phone, err := getPhone()
-	if err != nil {
-		return nil, err
-	}
+	//phone, err := getPhone()
+	//if err != nil {
+	//	return nil, err
+	//}
+	// TODO: !!!!!
+	phone := ""
 
-	// Setting up authentication flow helper based on terminal auth.
 	flow := auth.NewFlow(
 		termAuth{phone: phone},
 		auth.SendCodeOptions{},
 	)
 
+	d := tg.NewUpdateDispatcher()
+	gaps := updates.New(updates.Config{
+		Handler: d,
+		Logger:  log.Named("gaps"),
+	})
 	client, err := telegram.ClientFromEnvironment(telegram.Options{
-		Logger: log,
+		Logger:        log,
+		UpdateHandler: gaps,
+		Middlewares: []telegram.Middleware{
+			updhook.UpdateHook(gaps.Handle),
+		},
 	})
 	if err != nil {
 		return client, err
 	}
-	err = client.Run(context.Background(), func(ctx context.Context) error {
-		if err := client.Auth().IfNecessary(ctx, flow); err != nil {
+
+	d.OnNewMessage(func(ctx context.Context, e tg.Entities, update *tg.UpdateNewMessage) error {
+		msg, ok := update.Message.(*tg.Message)
+		if !ok {
+			fmt.Print("not ok msg")
+			return errors.New("")
+		}
+
+		peer := msg.PeerID
+		if !ok {
+			fmt.Print("not ok from")
+			return errors.New("")
+		}
+
+		uid, ok := peer.(*tg.PeerUser)
+		if !ok {
+			fmt.Print("not ok uid")
+			return errors.New("")
+		}
+		if uid.UserID == 5365342933 {
+			fmt.Println("It's me")
+		}
+		//user, err := client.Self(context.Background())
+		//if err != nil {
+		//	return err
+		//}
+		//
+		//fullUser, err := client.API().UsersGetFullUser(context.Background(), &tg.InputUser{
+		//	UserID:     uid.UserID,
+		//	AccessHash: user.AccessHash,
+		//})
+		//if err != nil {
+		//	return err
+		//}
+		//
+		//fullUser.FullUser.
+
+		media, ok := msg.Media.(*tg.MessageMediaDocument)
+		if !ok {
+			return errors.New("")
+		}
+		docTemp, ok := media.GetDocument()
+		if !ok {
+			return errors.New("")
+		}
+
+		doc, ok := docTemp.(*tg.Document)
+		if !ok {
+			return errors.New("")
+		}
+		_, err := downloader.NewDownloader().Download(client.API(), doc.AsInputDocumentFileLocation()).ToPath(ctx, "save.json")
+		if err != nil {
 			return err
 		}
 
-		log.Info("Success")
-
+		fmt.Print("got message!" + string(doc.FileReference))
 		return nil
 	})
+
+	_, err = bg.Connect(client)
+	if err != nil {
+		panic(err)
+	}
+
+	if err := client.Auth().IfNecessary(context.Background(), flow); err != nil {
+		return client, err
+	}
+
 	return client, err
 }
