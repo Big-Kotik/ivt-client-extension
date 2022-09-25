@@ -2,16 +2,19 @@ package main
 
 import (
 	"fmt"
+	"inv-client-extension/ivt/client"
+	"inv-client-extension/ivt/proxy"
+	"log"
+	"os"
+	"os/signal"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"inv-client-extension/ivt/client"
-	"inv-client-extension/ivt/proxy"
-	"os"
-	"os/signal"
 )
 
 func main() {
+	log.Print("Start")
 	w := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   "log",
 		MaxSize:    500, // megabytes

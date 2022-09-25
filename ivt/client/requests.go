@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"inv-client-extension/ivt/types"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -52,12 +53,10 @@ func (user *User) SendRequests(requests ...*types.RequestWrapper) error {
 func (user *User) Run(c <-chan types.Requests) {
 	t := time.NewTicker(1*time.Second + 5*time.Millisecond)
 	for range t.C {
+		log.Print("HERE")
 		requests := make([]types.Requests, 0)
 		for {
-			req, ok := <-c
-			if !ok {
-				break
-			}
+			req := <-c
 			requests = append(requests, req)
 			// TODO: delete
 			break
@@ -66,11 +65,13 @@ func (user *User) Run(c <-chan types.Requests) {
 		wrappedRequests := make([]*types.RequestWrapper, 0)
 		for _, val := range requests {
 			user.idToRequest.Store(val.GetUuid().String(), val)
+			log.Printf("store: %s", val.GetUuid().String())
 			wrappedRequests = append(wrappedRequests, val.ToRequestWrapper())
 		}
 		err := user.SendRequests(wrappedRequests...)
 		if err != nil {
-			return
+			log.Print("err ", err)
+			continue
 		}
 	}
 }

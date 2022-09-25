@@ -5,12 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gotd/contrib/bg"
-	"github.com/gotd/td/telegram/downloader"
-	"github.com/gotd/td/telegram/updates"
 	"inv-client-extension/ivt/types"
 	"os"
 	"strings"
+
+	"github.com/gotd/contrib/bg"
+	"github.com/gotd/td/telegram/downloader"
+	"github.com/gotd/td/telegram/updates"
 
 	"github.com/go-faster/errors"
 	"github.com/gotd/td/telegram"
@@ -67,7 +68,7 @@ func getPhone() (string, error) {
 	return getNonSecretData("Enter phone: ")
 }
 
-func (user *User) authClient(log *zap.Logger) (*telegram.Client, error) {
+func (user *User) authClient(logger *zap.Logger) (*telegram.Client, error) {
 	//phone, err := getPhone()
 	//if err != nil {
 	//	return nil, err
@@ -83,10 +84,10 @@ func (user *User) authClient(log *zap.Logger) (*telegram.Client, error) {
 	d := tg.NewUpdateDispatcher()
 	gaps := updates.New(updates.Config{
 		Handler: d,
-		Logger:  log.Named("gaps"),
+		Logger:  logger.Named("gaps"),
 	})
 	client, err := telegram.ClientFromEnvironment(telegram.Options{
-		Logger:        log,
+		Logger:        logger,
 		UpdateHandler: gaps,
 		Middlewares: []telegram.Middleware{
 			updhook.UpdateHook(gaps.Handle),
@@ -114,7 +115,11 @@ func (user *User) authClient(log *zap.Logger) (*telegram.Client, error) {
 			fmt.Print("not ok uid")
 			return errors.New("not ok uid")
 		}
-		if uid.UserID == 5365342933 {
+		// from := msg.FromID.(*tg.PeerUser)
+
+		us, _ := client.Self(ctx)
+
+		if uid.UserID == us.ID || msg.FromID != nil {
 			return errors.New("it's me")
 		}
 		//user, err := client.Self(context.Background())
@@ -138,33 +143,36 @@ func (user *User) authClient(log *zap.Logger) (*telegram.Client, error) {
 		}
 		docTemp, ok := media.GetDocument()
 		if !ok {
-			log.Sugar().Error("Error: not ok")
+			logger.Sugar().Error("Error: not ok")
 			return errors.New("not ok media.GetDocument()")
 		}
 		doc, ok := docTemp.(*tg.Document)
 		if !ok {
-			log.Sugar().Error("Error: not ok")
+			logger.Sugar().Error("Error: not ok")
 			return errors.New("not ok doc")
 		}
 		_, err := downloader.NewDownloader().Download(client.API(), doc.AsInputDocumentFileLocation()).ToPath(ctx, tempFileName)
 		if err != nil {
-			log.Sugar().Errorf("Error: %w", err)
+			logger.Sugar().Errorf("Error: %w", err)
 			return err
 		}
 		file, err := os.Open(tempFileName)
 		if err != nil {
-			log.Sugar().Errorf("Error: %w", err)
+			logger.Sugar().Errorf("Error: %w", err)
 			return err
 		}
 
 		var responses types.ResponsesWrapper
 		err = json.NewDecoder(file).Decode(&responses)
 		if err != nil {
-			log.Sugar().Errorf("Error: %w", err)
+			logger.Sugar().Errorf("Error: %w", err)
 			return err
 		}
-		log.Sugar().Debugf("Response: %v", responses)
-		user.SendResponses(responses)
+		logger.Sugar().Debugf("Response: %v", responses)
+
+		// log.Printf("%v", responses.Data[0].Body)
+
+		user.SendResponses(&responses)
 		fmt.Println("got message!")
 		return nil
 	})

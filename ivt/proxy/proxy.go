@@ -21,7 +21,7 @@ const (
 )
 
 type SingleRequest struct {
-	id   uuid.UUID
+	ID   uuid.UUID
 	r    *http.Request
 	w    http.ResponseWriter
 	done chan struct{}
@@ -40,7 +40,7 @@ func (s *SingleRequest) Complete() {
 }
 
 func (s *SingleRequest) GetUuid() uuid.UUID {
-	return s.id
+	return s.ID
 }
 
 func (s *SingleRequest) ToRequestWrapper() *types.RequestWrapper {
@@ -53,7 +53,7 @@ func (s *SingleRequest) ToRequestWrapper() *types.RequestWrapper {
 	buf.ReadFrom(s.r.Body)
 
 	return &types.RequestWrapper{
-		ID:      s.id,
+		ID:      s.ID,
 		Url:     s.r.URL.String(),
 		Method:  s.r.Method,
 		Headers: headers,
@@ -111,8 +111,10 @@ func (p *Proxy) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 	p.logger.Sugar().Debugf("New request:", id)
 
+	log.Print("New request:", r.Header)
+
 	req := SingleRequest{
-		id:   id,
+		ID:   id,
 		r:    r,
 		w:    w,
 		done: make(chan struct{}, 1),
@@ -122,11 +124,14 @@ func (p *Proxy) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 	<-req.done
 
+	log.Print(w.Header())
+
 	p.logger.Sugar().Debugf("Finish request:", id)
 }
 
 func copyHeader(dst, src http.Header) {
 	log.Print("Try copy headers")
+	log.Print(src)
 	log.Print(len(src))
 	for k, vv := range src {
 		for _, v := range vv {
@@ -134,6 +139,7 @@ func copyHeader(dst, src http.Header) {
 			dst.Add(k, v)
 		}
 	}
+	log.Print(dst)
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
