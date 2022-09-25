@@ -2,8 +2,9 @@ package proxy
 
 import (
 	"bytes"
-	"inv-client-extension/ivt/client"
+	"inv-client-extension/ivt/types"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"time"
@@ -18,14 +19,6 @@ const (
 	SingleHttp ReqType = iota
 	Connect
 )
-
-type Requests interface {
-	io.Writer
-	client.Wrapper
-	WriteHeaders(headers http.Header)
-	Complete()
-	GetUuid() uuid.UUID
-}
 
 type SingleRequest struct {
 	id   uuid.UUID
@@ -50,8 +43,7 @@ func (s *SingleRequest) GetUuid() uuid.UUID {
 	return s.id
 }
 
-func (s *SingleRequest) ToRequestWrapper() *client.RequestWrapper {
-
+func (s *SingleRequest) ToRequestWrapper() *types.RequestWrapper {
 	headers := make(map[string][]string)
 	for k, v := range s.r.Header {
 		headers[k] = v
@@ -60,7 +52,7 @@ func (s *SingleRequest) ToRequestWrapper() *client.RequestWrapper {
 	buf := bytes.Buffer{}
 	buf.ReadFrom(s.r.Body)
 
-	return &client.RequestWrapper{
+	return &types.RequestWrapper{
 		ID:      s.id,
 		Url:     s.r.URL.String(),
 		Method:  s.r.Method,
@@ -70,12 +62,16 @@ func (s *SingleRequest) ToRequestWrapper() *client.RequestWrapper {
 }
 
 type Proxy struct {
-	requestChan chan Requests
+	requestChan chan types.Requests
 	logger      *zap.Logger
 }
 
 func NewProxy(logger *zap.Logger) *Proxy {
-	return &Proxy{requestChan: make(chan Requests, 100), logger: logger}
+	return &Proxy{requestChan: make(chan types.Requests, 100), logger: logger}
+}
+
+func (p *Proxy) GetChan() <-chan types.Requests {
+	return p.requestChan
 }
 
 func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
@@ -111,8 +107,12 @@ func (p *Proxy) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 	p.logger.Sugar().Debugf("Request: %v", r)
 
+	id := uuid.New()
+
+	p.logger.Sugar().Debugf("New request:", id)
+
 	req := SingleRequest{
-		id:   uuid.New(),
+		id:   id,
 		r:    r,
 		w:    w,
 		done: make(chan struct{}, 1),
@@ -121,11 +121,16 @@ func (p *Proxy) handleRequest(w http.ResponseWriter, r *http.Request) {
 	p.requestChan <- &req
 
 	<-req.done
+
+	p.logger.Sugar().Debugf("Finish request:", id)
 }
 
 func copyHeader(dst, src http.Header) {
+	log.Print("Try copy headers")
+	log.Print(len(src))
 	for k, vv := range src {
 		for _, v := range vv {
+			log.Print(k, v)
 			dst.Add(k, v)
 		}
 	}

@@ -3,10 +3,12 @@ package client
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/gotd/contrib/bg"
 	"github.com/gotd/td/telegram/downloader"
 	"github.com/gotd/td/telegram/updates"
+	"inv-client-extension/ivt/types"
 	"os"
 	"strings"
 
@@ -16,6 +18,10 @@ import (
 	updhook "github.com/gotd/td/telegram/updates/hook"
 	"github.com/gotd/td/tg"
 	"go.uber.org/zap"
+)
+
+const (
+	tempFileName = "save.json"
 )
 
 // noSignUp can be embedded to prevent signing up.
@@ -61,13 +67,13 @@ func getPhone() (string, error) {
 	return getNonSecretData("Enter phone: ")
 }
 
-func authClient(log *zap.Logger) (*telegram.Client, error) {
+func (user *User) authClient(log *zap.Logger) (*telegram.Client, error) {
 	//phone, err := getPhone()
 	//if err != nil {
 	//	return nil, err
 	//}
 	// TODO: !!!!!
-	phone := ""
+	phone := "+79312741632"
 
 	flow := auth.NewFlow(
 		termAuth{phone: phone},
@@ -94,22 +100,22 @@ func authClient(log *zap.Logger) (*telegram.Client, error) {
 		msg, ok := update.Message.(*tg.Message)
 		if !ok {
 			fmt.Print("not ok msg")
-			return errors.New("")
+			return errors.New("not ok msg")
 		}
 
 		peer := msg.PeerID
 		if !ok {
 			fmt.Print("not ok from")
-			return errors.New("")
+			return errors.New("not ok from")
 		}
 
 		uid, ok := peer.(*tg.PeerUser)
 		if !ok {
 			fmt.Print("not ok uid")
-			return errors.New("")
+			return errors.New("not ok uid")
 		}
 		if uid.UserID == 5365342933 {
-			fmt.Println("It's me")
+			return errors.New("it's me")
 		}
 		//user, err := client.Self(context.Background())
 		//if err != nil {
@@ -128,23 +134,38 @@ func authClient(log *zap.Logger) (*telegram.Client, error) {
 
 		media, ok := msg.Media.(*tg.MessageMediaDocument)
 		if !ok {
-			return errors.New("")
+			return errors.New("not ok media")
 		}
 		docTemp, ok := media.GetDocument()
 		if !ok {
-			return errors.New("")
+			log.Sugar().Error("Error: not ok")
+			return errors.New("not ok media.GetDocument()")
 		}
-
 		doc, ok := docTemp.(*tg.Document)
 		if !ok {
-			return errors.New("")
+			log.Sugar().Error("Error: not ok")
+			return errors.New("not ok doc")
 		}
-		_, err := downloader.NewDownloader().Download(client.API(), doc.AsInputDocumentFileLocation()).ToPath(ctx, "save.json")
+		_, err := downloader.NewDownloader().Download(client.API(), doc.AsInputDocumentFileLocation()).ToPath(ctx, tempFileName)
 		if err != nil {
+			log.Sugar().Errorf("Error: %w", err)
+			return err
+		}
+		file, err := os.Open(tempFileName)
+		if err != nil {
+			log.Sugar().Errorf("Error: %w", err)
 			return err
 		}
 
-		fmt.Print("got message!" + string(doc.FileReference))
+		var responses types.ResponsesWrapper
+		err = json.NewDecoder(file).Decode(&responses)
+		if err != nil {
+			log.Sugar().Errorf("Error: %w", err)
+			return err
+		}
+		log.Sugar().Debugf("Response: %v", responses)
+		user.SendResponses(responses)
+		fmt.Println("got message!")
 		return nil
 	})
 

@@ -4,45 +4,30 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"inv-client-extension/ivt/types"
 	"os"
 	"path/filepath"
+	"time"
 
-	"github.com/google/uuid"
 	"github.com/gotd/td/telegram/message"
 	"github.com/gotd/td/telegram/uploader"
 )
 
-type RequestWrapper struct {
-	ID      uuid.UUID           `json:"id"`
-	Url     string              `json:"url"`
-	Method  string              `json:"method"`
-	Body    []byte              `json:"body"`
-	Headers map[string][]string `json:"headers"`
-}
-
-type RequestsWrapper struct {
-	Data []RequestWrapper `json:"data"`
-}
-
-type Wrapper interface {
-	ToRequestWrapper() *RequestWrapper
-}
-
-func NewRequestWrapper(url string, method string, body []byte, headers map[string][]string) RequestWrapper {
+func NewRequestWrapper(url string, method string, body []byte, headers map[string][]string) *types.RequestWrapper {
 	if body == nil {
 		body = make([]byte, 0)
 	}
 	if headers == nil {
 		headers = make(map[string][]string)
 	}
-	return RequestWrapper{Url: url, Method: method, Headers: headers}
+	return &types.RequestWrapper{Url: url, Method: method, Headers: headers}
 }
 
-func NewRequestsWrapper(requests ...RequestWrapper) RequestsWrapper {
-	return RequestsWrapper{Data: requests}
+func NewRequestsWrapper(requests ...*types.RequestWrapper) types.RequestsWrapper {
+	return types.RequestsWrapper{Data: requests}
 }
 
-func (user *User) SendRequests(requests ...RequestWrapper) error {
+func (user *User) SendRequests(requests ...*types.RequestWrapper) error {
 	file, err := initFile("test.json", NewRequestsWrapper(requests...))
 	defer file.Close()
 	if err != nil {
@@ -64,7 +49,33 @@ func (user *User) SendRequests(requests ...RequestWrapper) error {
 	return nil
 }
 
-func initFile(filename string, requests RequestsWrapper) (*os.File, error) {
+func (user *User) Run(c <-chan types.Requests) {
+	t := time.NewTicker(1*time.Second + 5*time.Millisecond)
+	for range t.C {
+		requests := make([]types.Requests, 0)
+		for {
+			req, ok := <-c
+			if !ok {
+				break
+			}
+			requests = append(requests, req)
+			// TODO: delete
+			break
+		}
+
+		wrappedRequests := make([]*types.RequestWrapper, 0)
+		for _, val := range requests {
+			user.idToRequest.Store(val.GetUuid().String(), val)
+			wrappedRequests = append(wrappedRequests, val.ToRequestWrapper())
+		}
+		err := user.SendRequests(wrappedRequests...)
+		if err != nil {
+			return
+		}
+	}
+}
+
+func initFile(filename string, requests types.RequestsWrapper) (*os.File, error) {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
 		return nil, fmt.Errorf("can't find cahce dir: %w", err)
