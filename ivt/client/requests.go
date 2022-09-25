@@ -22,6 +22,10 @@ type RequestsWrapper struct {
 	Data []RequestWrapper `json:"data"`
 }
 
+type Wrapper interface {
+	ToRequestWrapper() *RequestWrapper
+}
+
 func NewRequestWrapper(url string, method string, body []byte, headers map[string][]string) RequestWrapper {
 	if body == nil {
 		body = make([]byte, 0)
