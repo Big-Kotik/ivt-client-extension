@@ -15,6 +15,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/go-faster/jx v0.39.0 // indirect
 	github.com/go-faster/xor v0.3.0 // indirect
+	github.com/google/uuid v1.3.0
 	github.com/gotd/ige v0.2.2 // indirect
 	github.com/gotd/neo v0.1.5 // indirect
 	github.com/klauspost/compress v1.15.9 // indirect

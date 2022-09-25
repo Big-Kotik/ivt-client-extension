@@ -7,11 +7,13 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/google/uuid"
 	"github.com/gotd/td/telegram/message"
 	"github.com/gotd/td/telegram/uploader"
 )
 
 type RequestWrapper struct {
+	ID      uuid.UUID           `json:"id"`
 	Url     string              `json:"url"`
 	Method  string              `json:"method"`
 	Body    []byte              `json:"body"`

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -23,9 +24,11 @@ type Requests interface {
 	client.Wrapper
 	WriteHeaders(headers http.Header)
 	Complete()
+	GetUuid() uuid.UUID
 }
 
 type SingleRequest struct {
+	id   uuid.UUID
 	r    *http.Request
 	w    http.ResponseWriter
 	done chan struct{}
@@ -43,6 +46,10 @@ func (s *SingleRequest) Complete() {
 	s.done <- struct{}{}
 }
 
+func (s *SingleRequest) GetUuid() uuid.UUID {
+	return s.id
+}
+
 func (s *SingleRequest) ToRequestWrapper() *client.RequestWrapper {
 
 	headers := make(map[string][]string)
@@ -54,6 +61,7 @@ func (s *SingleRequest) ToRequestWrapper() *client.RequestWrapper {
 	buf.ReadFrom(s.r.Body)
 
 	return &client.RequestWrapper{
+		ID:      s.id,
 		Url:     s.r.URL.String(),
 		Method:  s.r.Method,
 		Headers: headers,
@@ -104,6 +112,7 @@ func (p *Proxy) handleRequest(w http.ResponseWriter, r *http.Request) {
 	p.logger.Sugar().Debugf("Request: %v", r)
 
 	req := SingleRequest{
+		id:   uuid.New(),
 		r:    r,
 		w:    w,
 		done: make(chan struct{}, 1),
@@ -112,16 +121,6 @@ func (p *Proxy) handleRequest(w http.ResponseWriter, r *http.Request) {
 	p.requestChan <- &req
 
 	<-req.done
-
-	// resp, err := http.DefaultTransport.RoundTrip(r)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusServiceUnavailable)
-	// 	return
-	// }
-	// defer resp.Body.Close()
-	// copyHeader(w.Header(), resp.Header)
-	// w.WriteHeader(resp.StatusCode)
-	// io.Copy(w, resp.Body)
 }
 
 func copyHeader(dst, src http.Header) {
