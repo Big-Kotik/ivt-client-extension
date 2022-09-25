@@ -7,15 +7,8 @@ import (
 )
 
 func (user *User) SendResponses(responses *types.ResponsesWrapper) {
-	log.Printf("res: %v", responses.Data[0])
-
 	for _, res := range responses.Data {
-
-		log.Printf("res2: %v", res)
-		log.Print(res.ID.String())
-
 		user.idToRequest.Range(func(key, value interface{}) bool {
-			log.Printf("key: %v", key)
 			return true
 		})
 
@@ -36,10 +29,7 @@ func (user *User) SendResponses(responses *types.ResponsesWrapper) {
 			}
 		}
 		req.WriteHeaders(h)
-
-		n, err := req.Write(res.Body)
-		log.Print(n, err)
-
+		req.Write(res.Body)
 		req.Complete()
 	}
 }
