@@ -69,12 +69,10 @@ func getPhone() (string, error) {
 }
 
 func (user *User) authClient(logger *zap.Logger) (*telegram.Client, error) {
-	//phone, err := getPhone()
-	//if err != nil {
-	//	return nil, err
-	//}
-	// TODO: !!!!!
-	phone := "+79312741632"
+	phone, err := getPhone()
+	if err != nil {
+		return nil, err
+	}
 
 	flow := auth.NewFlow(
 		termAuth{phone: phone},
