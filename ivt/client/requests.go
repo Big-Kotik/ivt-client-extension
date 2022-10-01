@@ -51,15 +51,21 @@ func (user *User) SendRequests(requests ...*types.RequestWrapper) error {
 }
 
 func (user *User) Run(c <-chan types.Requests) {
-	t := time.NewTicker(1*time.Second + 5*time.Millisecond)
+	t := time.NewTicker(1*time.Second + 500*time.Millisecond)
 	for range t.C {
 		log.Print("HERE")
 		requests := make([]types.Requests, 0)
 		for {
-			req := <-c
-			requests = append(requests, req)
-			// TODO: delete
-			break
+			flag := false
+			select {
+			case req := <-c:
+				requests = append(requests, req)
+			default:
+				flag = true
+			}
+			if flag {
+				break
+			}
 		}
 
 		wrappedRequests := make([]*types.RequestWrapper, 0)
@@ -67,6 +73,9 @@ func (user *User) Run(c <-chan types.Requests) {
 			user.idToRequest.Store(val.GetUuid().String(), val)
 			log.Printf("store: %s", val.GetUuid().String())
 			wrappedRequests = append(wrappedRequests, val.ToRequestWrapper())
+		}
+		if len(wrappedRequests) == 0 {
+			continue
 		}
 		err := user.SendRequests(wrappedRequests...)
 		if err != nil {

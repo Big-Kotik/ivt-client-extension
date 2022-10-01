@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"inv-client-extension/ivt/client"
 	"inv-client-extension/ivt/proxy"
 	"log"
@@ -37,21 +36,8 @@ func main() {
 	signal.Notify(stop, os.Interrupt)
 
 	pr := proxy.NewProxy(logger.Named("proxy"))
-	go u.Run(pr.GetChan())
 	go pr.ListenAndServe()
+	go u.Run(pr.GetChan())
 
 	<-stop
-}
-
-func testSend(u *client.User) error {
-	headers := make(map[string][]string)
-	headers["Accept"] = []string{"*/*"}
-	headers["Upgrade-Insecure-Requests"] = []string{"1"}
-	headers["User-Agent"] = []string{"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/"}
-	err := u.SendRequests(client.NewRequestWrapper("http://neverssl.com/", "GET", nil, headers))
-	if err != nil {
-		fmt.Printf("Failed: %s", err.Error())
-		return err
-	}
-	return nil
 }
