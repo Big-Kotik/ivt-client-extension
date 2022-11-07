@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"fmt"
 	"inv-client-extension/ivt/types"
 	"io"
 	"log"
@@ -64,10 +65,12 @@ func (s *SingleRequest) ToRequestWrapper() *types.RequestWrapper {
 type Proxy struct {
 	requestChan chan types.Requests
 	logger      *zap.Logger
+	port        int
+	server      *http.Server
 }
 
-func NewProxy(logger *zap.Logger) *Proxy {
-	return &Proxy{requestChan: make(chan types.Requests, 100), logger: logger}
+func NewProxy(port int, logger *zap.Logger) *Proxy {
+	return &Proxy{requestChan: make(chan types.Requests, 100), logger: logger, port: port}
 }
 
 func (p *Proxy) GetChan() <-chan types.Requests {
@@ -76,6 +79,8 @@ func (p *Proxy) GetChan() <-chan types.Requests {
 
 func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 	p.logger.Sugar().Debug("Handeling connect request")
+
+	return
 
 	destConn, err := net.DialTimeout("tcp", r.Host, 10*time.Second)
 	if err != nil {
@@ -88,6 +93,7 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
 		return
 	}
+
 	clientConn, _, err := hijacker.Hijack()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
@@ -103,15 +109,12 @@ func transfer(destination io.WriteCloser, source io.ReadCloser) {
 }
 
 func (p *Proxy) handleRequest(w http.ResponseWriter, r *http.Request) {
-	p.logger.Sugar().Debug("Handeling simple request")
-
-	p.logger.Sugar().Debugf("Request: %v", r)
-
 	id := uuid.New()
 
-	p.logger.Sugar().Debugf("New request:", id)
-
-	log.Print("New request:", r.Header)
+	logger := p.logger.With(zap.String("request_id", id.String()))
+	logger.Info("Handeling simple request")
+	logger.Sugar().Debugf("Request: %v", r)
+	defer logger.Info("Request handled")
 
 	req := SingleRequest{
 		ID:   id,
@@ -124,22 +127,16 @@ func (p *Proxy) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 	<-req.done
 
-	log.Print(w.Header())
-
-	p.logger.Sugar().Debugf("Finish request:", id)
+	p.logger.Sugar().Debugf("Finish request: %d", id)
 }
 
 func copyHeader(dst, src http.Header) {
-	log.Print("Try copy headers")
-	log.Print(src)
-	log.Print(len(src))
 	for k, vv := range src {
 		for _, v := range vv {
 			log.Print(k, v)
 			dst.Add(k, v)
 		}
 	}
-	log.Print(dst)
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -151,6 +148,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Proxy) ListenAndServe() error {
-	server := &http.Server{Addr: ":8080", Handler: p}
-	return server.ListenAndServe()
+	p.server = &http.Server{Addr: fmt.Sprintf(":%d", p.port), Handler: p}
+	return p.server.ListenAndServe()
+}
+
+func (p *Proxy) Shutdown() error {
+	return p.server.Shutdown(nil)
 }
